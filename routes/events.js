@@ -5,6 +5,7 @@ const { event_validation, event_validation_update } = require('../validation/eve
 const auth = require('../middleware/auth')
 const { ObjectId } = require('mongodb')
 const async_error = require("../middleware/async_error")
+const admin_manager=require('../middleware/admin_manager')
 
 const collection =require('../startup/collections')
 
@@ -12,21 +13,31 @@ const event_collection=collection.event_collection
 
 
 //create event
-router.post('/', auth, async_error(async (req, res) => {
-
+router.post('/', [auth,admin_manager], async_error(async (req, res) => {
+     
+    //validation
     const error = event_validation(req.body)
     if (error.error) {
         const error_message = error.error.details.map(detail => detail.message)
         return res.status(400).send({ error: error_message })
     }
+    
+
 
     const db = await getDb()
 
-    if (!['admin', 'manager'].includes(req.user.role)) {
-        return res.status(401).send({ error: `unauthorized user ,dont have access to create an event for ${req.user.role}` })
+//check location and event start date and event end date
+    const normalized_location = req.body.location;
+    const overlapping_events = await db.collection(event_collection).find({
+        location: { $regex: normalized_location, $options: 'i' },
+        $or: [{ start_date: { $lte: new Date(req.body.end_date) } }, { end_date: { $gt: new Date(req.body.start_date) } }]
+    }).toArray();
+
+    if (overlapping_events.length > 0) {
+        return res.status(400).send({ error: "There is already an event scheduled at this location during the specified time period." });
     }
 
-
+//Iterate Each ticket to validate start and end number
     for (let i = 0; i < req.body.tickets.length; i++) {
         const { start_no, end_no } = req.body.tickets[i];
         if (start_no >= end_no) {
@@ -37,19 +48,19 @@ router.post('/', auth, async_error(async (req, res) => {
         }
     }
 
-
+//data field and value
     const event_data = {
         title: req.body.title,
         description: req.body.description,
         start_date: new Date(req.body.start_date),
         end_date: new Date(req.body.end_date),
-        location: normalized_location,
+        location: req.body.location,
         created_by: new ObjectId(req.user._id),
         status: "upcoming"
     }
 
     let total_no_of_tickets = 0;
-
+  //generate seats and find total number of seats
     event_data.tickets = req.body.tickets.map(ticket => {
 
         const available = (ticket.end_no - ticket.start_no) + 1
@@ -72,7 +83,8 @@ router.post('/', auth, async_error(async (req, res) => {
     })
 
     event_data.total_no_of_tickets = total_no_of_tickets
-
+   
+    //create an event
     const event = await db.collection(event_collection).insertOne(event_data)
     res.status(201).send({ message: "created a event successfully", id: event.insertedId })
 
@@ -85,7 +97,8 @@ router.get('/getevent/:id', auth, async_error(async (req, res) => {
 
     const db = await getDb()
     const event_id = req.params.id
-
+    
+    //check the event id
     const event = await db.collection(event_collection).findOne({ _id: new ObjectId(event_id) })
     if (!event) return res.status(404).send({ error: "Event not found or provide proper id" })
 
@@ -98,7 +111,7 @@ router.get('/getevent/:id', auth, async_error(async (req, res) => {
 router.get('/', auth, async_error(async (req, res) => {
 
     const db = await getDb()
-
+    
     const events = await db.collection(event_collection).find({}).toArray()
     if (!events) res.status(200).send(events)
     res.status(200).send(events)

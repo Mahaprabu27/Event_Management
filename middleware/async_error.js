@@ -4,7 +4,7 @@ function error_handler(handler) {
             await handler(req, res)
         }
         catch (e) {
-            next(ex)
+            next(e)
         }
     }
 }

@@ -15,7 +15,20 @@ function event_validation(value) {
                 start_no: joi.number().min(1).required(),
                 end_no: joi.number().greater(joi.ref('start_no')).required()
             })
-        ),
+        )
+        // .custom((tickets,helpers)=>{
+        //     for(let start=0;start<tickets.length;start++){
+        //         const {start_no,end_no,type}=tickets[start];
+
+        //       if(start_no>=end_no){
+        //         return helpers.error('any.invalid', { message: `End number for ticket type ${type} must be greater than start number`})
+        //       }
+        //       if(start>0 && start_no<=tickets[start-1].end_no){
+        //         return helpers.error('any.invalid', { message: `Start number for ticket type ${type} must be greater than end number of previous ticket type` });
+        //       }
+        //     }
+        //     return tickets
+        // },'custom validation').required()
 
     })
     const option = { abortEarly: false }

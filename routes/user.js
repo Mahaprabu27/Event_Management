@@ -8,7 +8,8 @@ const bcrypt = require('bcrypt')
 const { ObjectId } = require('mongodb')
 const async_error=require('../middleware/async_error')
 
-const { user_validation, generate_authToken, user_validation_update } = require('../validation/users')
+const { user_validation, user_validation_update } = require('../validation/users')
+const {generate_authToken}=require('../startup/tokenGeneration')
 
 const collection =require('../startup/collections')
 
@@ -30,10 +31,6 @@ router.post('/', async_error(async (req, res) => {
         return res.status(status_error).send({ error: error_message })
     }
 
-
-    if (!['manager', 'user'].includes(req.body.role)) {
-        return res.status(status_error).send({ error: "provide proper role either user or manager. [!use small letters..]" })
-    }
 
     let user = await db.collection(user_collection).findOne({ email: req.body.email })
     if (user) return res.status(status_error).send({ error: "the user have already registered" })
@@ -82,6 +79,7 @@ router.get('/', [auth, admin],async_error(async (req, res) => {
 router.get('/managers', [auth, admin],async_error( async (req, res) => {
     const db = await getDb()
     const result = await db.collection(user_collection).find({ role: "manager" }).toArray()
+    if(!result) res.status(404).send({message:"no users registered in manager role"})
     res.status(success).send(result)
 }))
 
@@ -107,7 +105,7 @@ router.put("/:id", [auth, admin], async_error(async (req, res) => {
 
     const { error } = user_validation_update(user)
     if (error) return res.status(status_error).send({ error: error.details[0].message })
-
+    
     const check = await db.collection(user_collection).findOne({ _id: new ObjectId(req.params.id) })
     if (!check) res.status(status_error).send({ error: "invalid id" })
 

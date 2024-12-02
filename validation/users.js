@@ -1,6 +1,5 @@
 const joi = require("joi")
-const jwt = require('jsonwebtoken')
-const config = require('config')
+
 
 
 //validating user data before register 
@@ -28,16 +27,18 @@ function user_validation_update(value) {
 }
 
 
-//generate jwt token by getting userId,role with secreteKey
-function generate_authToken(user) {
-  console.log(user._id)
-  const token = jwt.sign({ _id: user._id, role: user.role }, config.get('JwtPrivateKey'), { expiresIn: "60m" })
-  return token
+//validating login data before login
+function login_validation(value) {
+  const schema = joi.object({
+
+      email: joi.string().min(5).max(30).required().email(),
+      password: joi.string().min(8).max(30).required()
+  })
+  return schema.validate(value)
 }
 
-
+module.exports.login_validation=login_validation
 module.exports.user_validation = user_validation
-module.exports.generate_authToken = generate_authToken
 module.exports.user_validation_update = user_validation_update
 
 

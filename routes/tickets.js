@@ -15,25 +15,26 @@ const user_collection=collection.user_collection
 router.post('/:eventId/', auth, async_error(async (req, res) => {
 
     const db = await getDb();
-
+    //validation
     const { error } = ticket_validation(req.body)
     if (error) {
         const error_message = error.details.map(detail => detail.message)
         res.status(400).send(error_message)
     }
 
+    //check event by id
     const event = await db.collection(event_collection).findOne({ _id: new ObjectId(req.params.eventId) });
     if (!event) return res.status(404).send({ error: "Event not found" });
 
     const ticket_bookings = req.body.tickets;
     let total_amount = 0;
 
-
+    //check the available seats
     for (let ticket_booking of ticket_bookings) {
         const { type, seats } = ticket_booking;
 
-        const ticket_type = event.tickets.find(ticket => ticket.type === type);
-        if (!ticket_type) return res.status(404).send({ error: `Ticket type ${type} not found` });
+        // const ticket_type = event.tickets.find(ticket => ticket.type === type);
+        // if (!ticket_type) return res.status(404).send({ error: `Ticket type ${type} not found` });
 
 
         const seat_errors = []
@@ -45,7 +46,7 @@ router.post('/:eventId/', auth, async_error(async (req, res) => {
         if (seat_errors.length > 0) return res.status(400).send({ seatErrors: seat_errors });
 
 
-
+        //book a seat
         for (let seat of seats) {
             ticket_type.seats[seat] = false;
         }
@@ -80,13 +81,17 @@ router.get('/:user_id/tickets', auth, async_error(async (req, res) => {
     const db = await getDb();
     const user_id = req.params.user_id;
 
+    //validation
     const user = await db.collection(user_collection).findOne({ _id: new Object(user_id) })
     if (!user) res.status(404).send({ error: "User not found" })
 
+    //admin access
     if (req.user.role === "admin") {
         const tickets = await db.collection(ticket_collection).find({ attendee_id: new ObjectId(user_id) }).toArray();
         res.status(200).send(tickets);
     }
+
+    //individual access
     else {
         if (!req.user_id.equals(user_id)) {
             return res.status(401).send({ error: "invalid id,This ticket was booked by someone.please enter your valid ticket id" })
@@ -104,13 +109,15 @@ router.get('/ticket/:ticket_id', auth, async_error(async (req, res) => {
     const db = await getDb()
     const ticketId = req.params.ticket_id
 
-
+    //admin access
     if (req.user.role === "admin") {
         const ticket = await db.collection(ticket_collection).findOne({ _id: new ObjectId(ticketId) });
         if (!ticket) return res.status(404).send({ error: "Ticket not found" });
 
         res.status(200).send(ticket);
     }
+
+    //check the individual access
     else {
         const ticket = await db.collection(ticket_collection).findOne({ _id: new ObjectId(ticketId), attendee_id: new ObjectId(req.user._id) })
         if (!ticket) return res.status(400).send({ error: "invalid ticket id or unknown user" })
@@ -126,13 +133,15 @@ router.patch('/:id', auth, async_error(async (req, res) => {
     const db = await getDb();
     const ticket_id = req.params.id;
     const update_data = req.body;
-
+    
+    //validation
     const { error } = ticket_validation_update(req.body)
     if (error) {
         const error_message = error.details.map(detail => detail.message)
         res.status(400).send(error_message)
     }
-
+    
+    //chcek the ticket by id
     const ticket_details = await db.collection(ticket_collection).findOne({ _id: new ObjectId(ticket_id) });
     if (!ticket_details) return res.status(404).send({ error: "Ticket not found" });
 
